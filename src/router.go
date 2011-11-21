@@ -10,10 +10,13 @@ import (
 type Router struct {
 	*mux.Router
 	// routeMaps map[string]*Route
+	collection *RouteCollection
+	loader *YamlFileLoader
+	resource string
 }
 
-func NewRouter() *Router {
-	return &Router{}
+func NewRouter(loader *YamlFileLoader, resource string) *Router {
+	return &Router{loader:loader, resource: resource}
 }
 
 func (this *Router) GenerateUrl(name string, pairs []string) *url.URL {
@@ -30,4 +33,27 @@ func (this *Router) MatchRequest(request *httpcontext.Request) mux.RouteVars {
 	}
 
 	panic("No match found")
+}
+
+func (this *Router) GetRouteCollection() *RouteCollection{
+    if this.collection == nil{
+    	this.collection = this.loader.Load(this.resource)
+    }
+
+    // TODO: Compile each route
+    return this.collection
+}
+
+func (this *Router) Compile() {
+    for name, route := range this.GetRouteCollection().Routes{
+    	muxRoute := this.NewRoute().Name(name).Path(route.GetPattern())
+
+    	if methods, ok := route.GetRequirement(ROUTE_REQUIREMENTS_METHOD); ok{
+	    	muxRoute.Methods(methods.([]string)...)
+    	}
+
+    	if schemes, ok := route.GetRequirement(ROUTE_REQUIREMENTS_SCHEME); ok{
+    		muxRoute.Schemes(schemes.([]string)...)
+    	}
+    }
 }

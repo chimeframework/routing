@@ -9,16 +9,6 @@ import (
 	"strings"
 )
 
-const (
-	ROUTE_RESOURCE     = "resource"
-	ROUTE_TYPE         = "type"
-	ROUTE_PREFIX       = "prefix"
-	ROUTE_DEFAULTS     = "defaults"
-	ROUTE_REQUIREMENTS = "requirements"
-	ROUTE_OPTIONS      = "options"
-	ROUTE_PATTERN      = "pattern"
-)
-
 type YamlFileLoader struct {
 	locator        *config.FileLocator
 	availableKeys  []string

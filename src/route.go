@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+/// Route
 type Route struct {
 	mux.Route
 	pattern         string
@@ -20,6 +21,10 @@ type Route struct {
 
 func NewRoute(pattern string, defaults map[string]interface{}, requirements map[string]interface{}, options map[string]interface{}) *Route {
 	this := &Route{}
+	this.SetPattern(pattern)
+	this.SetDefaults(defaults)
+	this.SetRequirements(requirements)	
+	this.SetOptions(options)
 	return this
 }
 
@@ -89,6 +94,16 @@ func (this *Route) SetRequirements(requirements map[string]interface{}) *Route {
 	for key, regex := range requirements {
 		this.requirements[key] = sanitizeRequirements(key, regex)
 	}
+
+	if _, ok := this.requirements[ROUTE_REQUIREMENTS_METHOD]; !ok{
+		// add default methods
+		this.requirements[ROUTE_REQUIREMENTS_METHOD] = [...]string{"GET", "POST", "PUT", "DELETE"}[:]
+	}
+
+	if _, ok := this.requirements[ROUTE_REQUIREMENTS_SCHEME]; !ok{
+		// add default schemes
+		this.requirements[ROUTE_REQUIREMENTS_SCHEME] = [...]string{"HTTP", "HTTPS"}[:]
+	}
 	return this
 }
 
@@ -105,19 +120,44 @@ func (this *Route) Compile() {
 	if this.hasCompiled {
 		return
 	}
+	// compilePattern
+	compilePattern(this)
+	compileMethods(this)
+	compileSchemes(this)
+}
+
+func compileMethods(route *Route) {
+	if method,ok := route.GetRequirement(ROUTE_REQUIREMENTS_METHOD); ok{
+		methods := strings.Split(config.ToString(method), "|")
+		if len(methods) > 0{
+			route.SetRequirement(ROUTE_REQUIREMENTS_METHOD, config.TrimSpacesFromArray(methods))
+		}
+	}
+}
+
+func compileSchemes(route *Route) {
+	if scheme,ok := route.GetRequirement(ROUTE_REQUIREMENTS_SCHEME); ok{
+		schemes := strings.Split(config.ToString(scheme), "|")
+		if len(schemes) > 0{
+			route.SetRequirement(ROUTE_REQUIREMENTS_SCHEME, config.TrimSpacesFromArray(schemes))
+		}
+	}
+}
+
+func compilePattern(route *Route){
 	reg := regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}`)
-	matches := reg.FindAllStringSubmatch(this.pattern, -1)
-	this.compiledPattern = this.pattern
-	this.hasCompiled = true
+	matches := reg.FindAllStringSubmatch(route.pattern, -1)
+	route.compiledPattern = route.pattern
+	route.hasCompiled = true
 	if matches != nil {
 		for _, match := range matches {
 			placeholder := match[0]
 			text := match[1]
 
 			// check for requirement
-			if req, ok := this.GetRequirement(text); ok {
+			if req, ok := route.GetRequirement(text); ok {
 				replacement := fmt.Sprintf("{%v:%v}", text, req)
-				this.compiledPattern = strings.Replace(this.compiledPattern, placeholder, replacement, -1)
+				route.compiledPattern = strings.Replace(route.compiledPattern, placeholder, replacement, -1)
 			}
 			// TODO: check for defaults
 		}
@@ -155,35 +195,35 @@ func NewRouteCollection() *RouteCollection {
 
 func (this *RouteCollection) AddPrefix(prefix string) {
 	// a prefix must not end with a slash
-	if strings.HasSuffix(prefix, "/"){
+	if strings.HasSuffix(prefix, "/") {
 		return
 	}
 
 	// a preffix must start with a slash
-	if !strings.HasPrefix(prefix, "/"){
+	if !strings.HasPrefix(prefix, "/") {
 		prefix = fmt.Sprintf("%v/", prefix)
 	}
 	this.prefix = fmt.Sprintf("%v%v", prefix, this.prefix)
 
-	for _, route := range this.Routes{
+	for _, route := range this.Routes {
 		route.SetPattern(fmt.Sprintf("%v%v", prefix, route.GetPattern()))
 	}
 }
 
-func (this *RouteCollection) GetPrefix() string{
-    return this.prefix;
+func (this *RouteCollection) GetPrefix() string {
+	return this.prefix
 }
 
 func (this *RouteCollection) Add(name string, route *Route) {
 	// TODO: Check for name with invalid characters
-    this.Routes[name] = route
+	this.Routes[name] = route
 }
 
 func (this *RouteCollection) AddCollectionWithPrefix(collection *RouteCollection, prefix string) {
 	collection.Parent = this
 	collection.AddPrefix(prefix)
 
-	for name, route :=  range collection.Routes{
+	for name, route := range collection.Routes {
 		this.Routes[name] = route
 	}
 }
